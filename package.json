@@ -1,0 +1,26 @@
+{
+  "name": "node-blueprint-k",
+  "version": "1.0.0",
+  "description": "Node.js backend for the K blueprint",
+  "main": "index.js",
+  "repository": "https://github.com/MuhammedRKartal/node-bpk-template.git",
+  "author": "Muhammed Kartal <muh.r.kartal@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "nodemon": "^3.1.7"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.1",
+    "dotenv": "^16.4.5",
+    "prisma": "^6.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "winston": "^3.17.0"
+  }
+}
