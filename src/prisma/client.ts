@@ -3,23 +3,18 @@ import logger from "../logger";
 
 const prisma = new PrismaClient();
 
-prisma.$use(
-  async (
-    params: { model: string; action: string; args: any },
-    next: (arg0: any) => any
-  ) => {
-    const start = Date.now();
-    const result = await next(params);
-    const duration = Date.now() - start;
+prisma.$use(async (params, next) => {
+  const start = Date.now();
+  const result = await next(params);
+  const duration = Date.now() - start;
 
-    logger.info({
-      query: params.model + "." + params.action,
-      params: params.args,
-      duration: `${duration}ms`, // Corrected template string
-    });
+  logger.info({
+    query: params.model + "." + params.action,
+    params: params.args,
+    duration: `${duration}ms`, // Corrected template string
+  });
 
-    return result;
-  }
-);
+  return result;
+});
 
 export default prisma;

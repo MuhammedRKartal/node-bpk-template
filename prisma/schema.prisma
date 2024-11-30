@@ -13,12 +13,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model user {
-  id              Int        @id @default(autoincrement())
-  username        String
+model User {
+  id              Int         @id @default(autoincrement())
+  email           String      @unique
+  username        String      @unique
   password        String
-  email           String
-  verified        String
-  date_joined     DateTime
-  eula_accepted   Boolean  
+  verified        Boolean     @default(false)
+  eula_accepted   Boolean     @default(false)
+  date_joined     DateTime    @default(now())
+
+  verificationCodes VerificationCode[]
+}
+
+model VerificationCode {
+  id                Int      @id @default(autoincrement())
+  user_id           Int      
+  code              String   
+  expiration_time   DateTime 
+  used              Boolean  @default(false)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  user              User     @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
 }

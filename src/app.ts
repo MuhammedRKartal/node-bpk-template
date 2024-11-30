@@ -1,6 +1,7 @@
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
 import cors from "cors";
-import { errorHandler } from "./errorhandler";
+import { errorHandler } from "./errorHandler";
+import userRoutes from "./routes/userRoutes";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(
 app.use(express.json());
 
 //Routes
+app.use("/users", userRoutes);
 
 app.use(errorHandler);
 
