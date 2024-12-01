@@ -34,8 +34,6 @@ export const register = async (
       },
     });
 
-    console.log("Found user:", existingUser);
-
     if (existingUser) {
       const verificationCodeEntry = await prisma.verificationCode.findFirst({
         where: {

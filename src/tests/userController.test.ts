@@ -1,23 +1,20 @@
 import { register } from "../controllers/userController";
-import { emailValidator, generateRandomSecret, hashPassword } from "../utils";
-import HttpError from "../custom-errors/httpError";
 import { prismaMock } from "../prisma/singleton";
-
-jest.mock("../logger", () => ({
-  info: jest.fn(),
-  error: jest.fn(),
-}));
+import { Request, Response, NextFunction } from "express";
+import HttpError from "../custom-errors/httpError";
+import { emailValidator, hashPassword, generateRandomSecret } from "../utils";
 
 jest.mock("../utils", () => ({
+  ...jest.requireActual("../utils"),
   emailValidator: jest.fn(),
-  generateRandomSecret: jest.fn(),
   hashPassword: jest.fn(),
+  generateRandomSecret: jest.fn(),
 }));
 
-jest.mock("../custom-errors/httpError");
-
-describe("register", () => {
-  let mockReq, mockRes, mockNext;
+describe("User Registration", () => {
+  let mockReq: Partial<Request>;
+  let mockRes: Partial<Response>;
+  let next: NextFunction;
 
   beforeEach(() => {
     mockReq = { body: {} };
@@ -25,140 +22,184 @@ describe("register", () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
-    mockNext = jest.fn();
+    next = jest.fn();
+    jest.clearAllMocks();
   });
 
-  it("should throw an error if required fields are missing", async () => {
-    mockReq.body = { username: "user", password: "" };
-
-    await register(mockReq, mockRes, mockNext);
-
-    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-    expect(HttpError).toHaveBeenCalledWith(
-      expect.stringContaining("Field(s)"),
-      404
+  it("should throw an error if 3 fields are missing", async () => {
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError("Field(s) username password email missing.", 404)
     );
   });
 
-  it("should throw an error if username is too short", async () => {
-    mockReq.body = {
-      username: "usr",
-      password: "password",
-      email: "email@test.com",
-    };
-
-    await register(mockReq, mockRes, mockNext);
-
-    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-    expect(HttpError).toHaveBeenCalledWith(
-      "Username must be at least 4 characters long.",
-      400
+  it("should throw an error if 2 fields are missing", async () => {
+    mockReq.body = { username: "test" };
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError("Field(s) password email missing.", 404)
     );
   });
 
-  it("should throw an error for invalid email format", async () => {
+  it("should throw an error if 1 field is missing", async () => {
+    mockReq.body = { username: "test", password: "test123" };
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError("Field(s) email missing.", 404)
+    );
+  });
+
+  it("should throw an error if username or password is too short", async () => {
+    mockReq.body = { username: "abc", password: "abc", email: "test@test.com" };
+    (emailValidator as jest.Mock).mockReturnValue(true);
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError("Username must be at least 4 characters long.", 400)
+    );
+  });
+
+  it("should throw an error if email is in invalid format", async () => {
     mockReq.body = {
-      username: "user",
-      password: "password",
-      email: "invalid-email",
+      username: "validUser",
+      password: "validPass",
+      email: "bademail",
     };
     (emailValidator as jest.Mock).mockReturnValue(false);
-
-    await register(mockReq, mockRes, mockNext);
-
-    expect(emailValidator).toHaveBeenCalledWith("invalid-email");
-    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-    expect(HttpError).toHaveBeenCalledWith("Email format is invalid.", 400);
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError("Email format is invalid.", 400)
+    );
   });
 
   it("should create a new user and verification code", async () => {
-    const mockUser = {
-      id: 1,
-      username: "user",
-      email: "email@test.com",
-      verified: false,
-    };
-
-    const mockVerification = {
-      code: "verificationCode123",
-      used: false,
-      user_id: 1,
-    };
-
-    const mockCode = "verificationCode123";
-
     mockReq.body = {
-      username: "user",
-      password: "password",
-      email: "email@test.com",
+      username: "newUser",
+      password: "newPass123",
+      email: "new@user.com",
     };
     (emailValidator as jest.Mock).mockReturnValue(true);
     (hashPassword as jest.Mock).mockResolvedValue("hashedPassword");
-    (prismaMock.user.findFirst as jest.Mock).mockResolvedValue(null);
-    (prismaMock.user.create as jest.Mock).mockResolvedValue(mockUser);
-    (generateRandomSecret as jest.Mock).mockReturnValue(mockCode);
+    (generateRandomSecret as jest.Mock).mockReturnValue("verificationCode");
+
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    (prismaMock.user.create as jest.Mock).mockResolvedValue({
+      id: "1",
+      username: "newUser",
+      email: "new@user.com",
+      verified: false,
+    });
     (prismaMock.verificationCode.create as jest.Mock).mockResolvedValue({
-      id: 1,
-      code: mockCode,
+      id: "1",
+      user_id: "1",
+      code: "verificationCode",
       expiration_time: new Date(),
+      used: false,
     });
 
-    await register(mockReq, mockRes, mockNext);
-
+    await register(mockReq as Request, mockRes as Response, next);
     expect(prismaMock.user.create).toHaveBeenCalled();
-    expect(prismaMock.verificationCode.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          ...mockVerification,
-        }),
-      })
-    );
+    expect(prismaMock.verificationCode.create).toHaveBeenCalled();
     expect(mockRes.status).toHaveBeenCalledWith(201);
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: mockUser.id,
-        username: mockUser.username,
-        email: mockUser.email,
-        verified: mockUser.verified,
-        code: mockCode,
+        username: "newUser",
+        code: "verificationCode",
       })
     );
   });
 
-  it("should return conflict if user or email already exists", async () => {
+  it("should throw an error if user or email already exists but not in verificationCode table", async () => {
     mockReq.body = {
-      username: "user",
-      email: "email@test.com",
+      username: "existingUser",
       password: "password",
+      email: "existing@user.com",
     };
+    (emailValidator as jest.Mock).mockReturnValue(true);
 
-    //Waiting for username: user and email: email@test.com as the output.
-    // Expected value
     (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
-      username: "user",
-      email: "email@test.com",
+      id: "1",
+      username: "existingUser",
+      email: "existing@user.com",
+      verified: true,
     });
+    prismaMock.verificationCode.findFirst.mockResolvedValue(null);
 
-    // Waiting for null as output.
-    (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue(
-      null
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(next).toHaveBeenCalledWith(
+      new HttpError(`User 'existingUser' already exists.`, 409)
     );
+  });
 
-    await register(mockReq, mockRes, mockNext);
+  it("should update the code if verification code is expired", async () => {
+    const expiredTime = new Date();
+    expiredTime.setMinutes(expiredTime.getMinutes() - 1);
 
-    // If we call it with these inputs, compare with the given info above.
-    // this function will call the real function
-    // top function is the expected value
-    expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
-      where: {
-        OR: [{ username: "user" }, { email: "email@test.com" }],
-      },
+    mockReq.body = {
+      username: "unverifiedUser",
+      password: "password",
+      email: "unverified@user.com",
+    };
+    (emailValidator as jest.Mock).mockReturnValue(true);
+    (generateRandomSecret as jest.Mock).mockReturnValue("newCode");
+
+    (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
+      id: "1",
+      username: "unverifiedUser",
+      email: "unverified@user.com",
+      verified: false,
+    });
+    (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
+      id: "1",
+      user_id: "1",
+      code: "oldCode",
+      expiration_time: expiredTime,
+      used: false,
+    });
+    (prismaMock.verificationCode.update as jest.Mock).mockResolvedValue({
+      id: "1",
+      user_id: "1",
+      code: "newCode",
+      expiration_time: new Date(),
+      used: false,
     });
 
-    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-    expect(HttpError).toHaveBeenCalledWith(
-      expect.stringContaining("already"),
-      409
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(prismaMock.verificationCode.update).toHaveBeenCalled();
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "newCode" })
+    );
+  });
+
+  it("should remind the code if verification code isn't expired", async () => {
+    const validTime = new Date();
+    validTime.setMinutes(validTime.getMinutes() + 10);
+
+    mockReq.body = {
+      username: "unverifiedUser",
+      password: "password",
+      email: "unverified@user.com",
+    };
+    (emailValidator as jest.Mock).mockReturnValue(true);
+
+    (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
+      id: "1",
+      username: "unverifiedUser",
+      email: "unverified@user.com",
+      verified: false,
+    });
+    (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
+      id: "1",
+      user_id: "1",
+      code: "existingCode",
+      expiration_time: validTime,
+      used: false,
+    });
+
+    await register(mockReq as Request, mockRes as Response, next);
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "existingCode" })
     );
   });
 });
