@@ -1,19 +1,7 @@
 import { register } from "../controllers/userController";
-import prisma from "../prisma/client";
 import { emailValidator, generateRandomSecret, hashPassword } from "../utils";
 import HttpError from "../custom-errors/httpError";
-
-jest.mock("../prisma/client", () => ({
-  user: {
-    findFirst: jest.fn(),
-    create: jest.fn(),
-  },
-  verificationCode: {
-    findFirst: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-  },
-}));
+import { prismaMock } from "../prisma/singleton";
 
 jest.mock("../logger", () => ({
   info: jest.fn(),
@@ -32,7 +20,6 @@ describe("register", () => {
   let mockReq, mockRes, mockNext;
 
   beforeEach(() => {
-    jest.clearAllMocks();
     mockReq = { body: {} };
     mockRes = {
       status: jest.fn().mockReturnThis(),
@@ -84,40 +71,6 @@ describe("register", () => {
     expect(HttpError).toHaveBeenCalledWith("Email format is invalid.", 400);
   });
 
-  it("should return conflict if user or email already exists", async () => {
-    // Mock request body
-    mockReq.body = {
-      username: "user",
-      email: "email@test.com",
-      password: "password",
-    };
-
-    // Mock prisma.user.findFirst
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
-      username: "user",
-      email: "email@test.com",
-    });
-
-    // Mock prisma.verificationCode.findFirst
-    (prisma.verificationCode.findFirst as jest.Mock).mockResolvedValue(null);
-
-    // Call the function
-    await register(mockReq, mockRes, mockNext);
-
-    // Assertions
-    expect(prisma.user.findFirst).toHaveBeenCalledWith({
-      where: {
-        OR: [{ username: "user" }, { email: "email@test.com" }],
-      },
-    });
-
-    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-    expect(HttpError).toHaveBeenCalledWith(
-      expect.stringContaining("already"),
-      409
-    );
-  });
-
   it("should create a new user and verification code", async () => {
     const mockUser = {
       id: 1,
@@ -125,10 +78,6 @@ describe("register", () => {
       email: "email@test.com",
       verified: false,
     };
-
-    const mockDate = new Date();
-    const currentDate = new Date();
-    mockDate.setMinutes(mockDate.getMinutes() + 1);
 
     const mockVerification = {
       code: "verificationCode123",
@@ -145,10 +94,10 @@ describe("register", () => {
     };
     (emailValidator as jest.Mock).mockReturnValue(true);
     (hashPassword as jest.Mock).mockResolvedValue("hashedPassword");
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.user.create as jest.Mock).mockResolvedValue(mockUser);
+    (prismaMock.user.findFirst as jest.Mock).mockResolvedValue(null);
+    (prismaMock.user.create as jest.Mock).mockResolvedValue(mockUser);
     (generateRandomSecret as jest.Mock).mockReturnValue(mockCode);
-    (prisma.verificationCode.create as jest.Mock).mockResolvedValue({
+    (prismaMock.verificationCode.create as jest.Mock).mockResolvedValue({
       id: 1,
       code: mockCode,
       expiration_time: new Date(),
@@ -156,8 +105,8 @@ describe("register", () => {
 
     await register(mockReq, mockRes, mockNext);
 
-    expect(prisma.user.create).toHaveBeenCalled();
-    expect(prisma.verificationCode.create).toHaveBeenCalledWith(
+    expect(prismaMock.user.create).toHaveBeenCalled();
+    expect(prismaMock.verificationCode.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           ...mockVerification,
@@ -173,6 +122,43 @@ describe("register", () => {
         verified: mockUser.verified,
         code: mockCode,
       })
+    );
+  });
+
+  it("should return conflict if user or email already exists", async () => {
+    mockReq.body = {
+      username: "user",
+      email: "email@test.com",
+      password: "password",
+    };
+
+    //Waiting for username: user and email: email@test.com as the output.
+    // Expected value
+    (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
+      username: "user",
+      email: "email@test.com",
+    });
+
+    // Waiting for null as output.
+    (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue(
+      null
+    );
+
+    await register(mockReq, mockRes, mockNext);
+
+    // If we call it with these inputs, compare with the given info above.
+    // this function will call the real function
+    // top function is the expected value
+    expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+      where: {
+        OR: [{ username: "user" }, { email: "email@test.com" }],
+      },
+    });
+
+    expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
+    expect(HttpError).toHaveBeenCalledWith(
+      expect.stringContaining("already"),
+      409
     );
   });
 });
