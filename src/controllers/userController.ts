@@ -1,8 +1,14 @@
 import { NextFunction, Request, Response } from "express";
 import prisma from "../prisma/client";
 import logger from "../logger";
-import { emailValidator, generateRandomSecret, hashPassword } from "../utils";
+import {
+  comparePassword,
+  emailValidator,
+  generateRandomSecret,
+  hashPassword,
+} from "../utils";
 import HttpError from "../custom-errors/httpError";
+import jwt from "jsonwebtoken";
 
 export const register = async (
   req: Request,
@@ -249,6 +255,53 @@ export const verifyRegistration = async (
       ...updatedUser,
     });
     return;
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { email, password } = req.body;
+
+  const JWT_SECRET = process.env.JWT_SECRET || "";
+
+  try {
+    if (!email || !password) {
+      throw new HttpError(
+        `Field(s) ${!email ? "email " : ""}${
+          !password ? "password" : ""
+        } missing.`,
+        404
+      );
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new HttpError(`User ${email} doesn't exists.`, 404);
+    }
+
+    const passwordsMatching = await comparePassword(password, user.password);
+
+    if (!passwordsMatching) {
+      throw new HttpError(`The password doesn't match.`, 400);
+    }
+
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    logger.info(`Successfully created the jwt token.`);
+    logger.info(`User ${email} successfully logged in.`);
+    res.status(200).json({ user: user, token: token });
   } catch (error) {
     next(error);
   }
