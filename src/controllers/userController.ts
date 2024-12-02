@@ -59,6 +59,13 @@ export const register = async (
       }
 
       if (verificationCodeEntry) {
+        if (verificationCodeEntry.used) {
+          throw new HttpError(
+            `User '${username}' isn't verified but the code: '${verificationCodeEntry.code}' is already used.`,
+            409
+          );
+        }
+
         const currentTime = new Date();
 
         if (verificationCodeEntry.expiration_time > currentTime) {
