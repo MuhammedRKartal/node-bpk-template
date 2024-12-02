@@ -1,4 +1,4 @@
-import { login } from "../controllers/userController";
+import { login } from "../controllers/authController";
 import { prismaMock } from "../prisma/singleton";
 import { Request, Response, NextFunction } from "express";
 import HttpError from "../custom-errors/httpError";

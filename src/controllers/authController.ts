@@ -6,9 +6,11 @@ import {
   emailValidator,
   generateRandomSecret,
   hashPassword,
+  isTokenExpired,
 } from "../utils";
 import HttpError from "../custom-errors/httpError";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { CustomRequest } from "../authMiddleware";
 
 export const register = async (
   req: Request,
@@ -309,6 +311,34 @@ export const login = async (
     logger.info(`Successfully created the jwt token.`);
     logger.info(`User ${email} successfully logged in.`);
     res.status(200).json({ user: user, token: token });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const currentUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userInfo = (req as CustomRequest).user as JwtPayload;
+
+    if (!userInfo || !userInfo.email) {
+      throw new HttpError(`Invalid token payload.`, 400);
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { email: userInfo.email },
+    });
+
+    if (!user) {
+      throw new HttpError(`User with current access token doesn't exist.`, 404);
+    }
+
+    logger.info(`Successfully returned the user: '${user.username}'`);
+
+    res.status(200).json(user);
   } catch (error) {
     next(error);
   }

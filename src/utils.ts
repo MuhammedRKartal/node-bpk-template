@@ -75,3 +75,18 @@ export const generateRandomSecret = (length = 6) => {
 
   return randomSecret;
 };
+
+/**
+ * Checks if the token has expired.
+ * @param exp - The expiration timestamp of the token (in Unix format).
+ * @returns A boolean indicating whether the token has expired.
+ */
+export const isTokenExpired = (exp: number): boolean => {
+  try {
+    const currentTime = Math.floor(Date.now() / 1000); // Current time in Unix format (seconds)
+    return exp < currentTime; // If expiration time is less than current time, token is expired
+  } catch (error) {
+    console.error("Error checking token expiration:", error);
+    throw new Error("Error checking token expiration");
+  }
+};

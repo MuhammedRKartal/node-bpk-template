@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { errorHandler } from "./errorHandler";
-import userRoutes from "./routes/userRoutes";
+import authRoutes from "./routes/authRoutes";
 
 const app = express();
 
@@ -16,7 +16,7 @@ app.use(
 app.use(express.json());
 
 //Routes
-app.use("/users", userRoutes);
+app.use("/auth", authRoutes);
 
 app.use(errorHandler);
 
