@@ -10,7 +10,7 @@ export const register = async (
   next: NextFunction
 ) => {
   const { username, password, email } = req.body;
-  12;
+
   try {
     if (!username || !password || !email) {
       throw new HttpError(
@@ -151,6 +151,104 @@ export const register = async (
       code: newVerificationCodeEntry.code,
       expiration_time: newVerificationCodeEntry.expiration_time,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyRegistration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { email, code } = req.body;
+
+  try {
+    if (!email || !code) {
+      throw new HttpError(
+        `Field(s) ${!email ? "email " : ""}${!code ? "code" : ""} missing.`,
+        404
+      );
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new HttpError(`User ${email} doesn't exists.`, 404);
+    }
+
+    if (user.verified) {
+      throw new HttpError(`User ${email} is already verified.`, 400);
+    }
+
+    const verificationCodeEntry = await prisma.verificationCode.findFirst({
+      where: {
+        user: {
+          email: email,
+        },
+      },
+    });
+
+    if (!verificationCodeEntry) {
+      throw new HttpError(`Verification code for ${email} doesn't exist.`, 404);
+    }
+
+    if (verificationCodeEntry.code !== code) {
+      throw new HttpError(
+        `The verification code '${code}' doesn't match with ${email}.`,
+        400
+      );
+    }
+
+    if (verificationCodeEntry.used) {
+      throw new HttpError(
+        `The verification code is already used for ${email}.`,
+        400
+      );
+    }
+
+    const updatedEntry = await prisma.verificationCode.update({
+      where: {
+        id: verificationCodeEntry.id,
+      },
+      data: {
+        used: true,
+        updated_at: new Date(),
+      },
+    });
+
+    if (!updatedEntry) {
+      throw new HttpError(`Failed to update used status of ${email}`, 400);
+    }
+    logger.info(
+      `Successfully updated the verification code used status to true for ${email}`
+    );
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        email,
+      },
+      data: {
+        verified: true,
+      },
+    });
+
+    if (!updatedUser) {
+      throw new HttpError(`Failed to update verified status of ${email}`, 400);
+    }
+
+    logger.info(
+      `Successfully updated the user verified status to true for ${email}`
+    );
+
+    res.status(200).json({
+      ...updatedUser,
+    });
+    return;
   } catch (error) {
     next(error);
   }
