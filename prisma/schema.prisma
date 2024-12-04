@@ -13,6 +13,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum OTPTypes {
+  Register
+  PasswordChange
+  PasswordReset
+}
+
 model User {
   id              Int         @id @default(autoincrement())
   email           String      @unique
@@ -27,7 +33,8 @@ model User {
 
 model VerificationCode {
   id                Int      @id @default(autoincrement())
-  user_id           Int      
+  user_id           Int
+  type              OTPTypes      
   code              String   
   expiration_time   DateTime 
   used              Boolean  @default(false)

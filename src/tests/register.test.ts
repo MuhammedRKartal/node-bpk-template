@@ -66,12 +66,13 @@ describe("User Registration", () => {
     );
   });
 
-  it("should throw an error if user or email already exists but not in verificationCode table", async () => {
+  it("should throw an error if user or email already exists", async () => {
     req.body = {
       username: "existingUser",
       password: "password",
       email: "existing@user.com",
     };
+
     (emailValidator as jest.Mock).mockReturnValue(true);
 
     (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
@@ -80,9 +81,9 @@ describe("User Registration", () => {
       email: "existing@user.com",
       verified: true,
     });
-    prismaMock.verificationCode.findFirst.mockResolvedValue(null);
 
     await register(req as Request, res as Response, next);
+
     expect(next).toHaveBeenCalledWith(
       new HttpError(`User 'existingUser' already exists.`, 409)
     );
@@ -110,6 +111,7 @@ describe("User Registration", () => {
       userId: "1",
       code: mockCode,
       used: true,
+      type: "Register",
     });
 
     await register(req as Request, res as Response, next);
@@ -122,6 +124,7 @@ describe("User Registration", () => {
 
     expect(prismaMock.verificationCode.findFirst).toHaveBeenCalledWith({
       where: {
+        type: "Register",
         user: {
           username: req.body.username,
           verified: false,
@@ -157,6 +160,7 @@ describe("User Registration", () => {
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
       id: "1",
       user_id: "1",
+      type: "Register",
       code: "oldCode",
       expiration_time: expiredTime,
       used: false,
@@ -164,6 +168,7 @@ describe("User Registration", () => {
     (prismaMock.verificationCode.update as jest.Mock).mockResolvedValue({
       id: "1",
       user_id: "1",
+      type: "Register",
       code: "newCode",
       expiration_time: new Date(),
       used: false,
@@ -197,6 +202,7 @@ describe("User Registration", () => {
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
       id: "1",
       user_id: "1",
+      type: "Register",
       code: "existingCode",
       expiration_time: validTime,
       used: false,
@@ -205,7 +211,7 @@ describe("User Registration", () => {
     await register(req as Request, res as Response, next);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "existingCode" })
+      expect.objectContaining({ type: "Register", code: "existingCode" })
     );
   });
 
@@ -219,7 +225,6 @@ describe("User Registration", () => {
     (hashPassword as jest.Mock).mockResolvedValue("hashedPassword");
     (generateRandomSecret as jest.Mock).mockReturnValue("verificationCode");
 
-    prismaMock.user.findFirst.mockResolvedValue(null);
     (prismaMock.user.create as jest.Mock).mockResolvedValue({
       id: "1",
       username: "newUser",
@@ -229,6 +234,7 @@ describe("User Registration", () => {
     (prismaMock.verificationCode.create as jest.Mock).mockResolvedValue({
       id: "1",
       user_id: "1",
+      type: "Register",
       code: "verificationCode",
       expiration_time: new Date(),
       used: false,
@@ -240,7 +246,7 @@ describe("User Registration", () => {
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        username: "newUser",
+        email: "new@user.com",
         code: "verificationCode",
       })
     );

@@ -73,7 +73,7 @@ describe("User Login", () => {
       "wrongPassword"
     );
     expect(next).toHaveBeenCalledWith(
-      new HttpError(`The password doesn't match.`, 400)
+      new HttpError(`The password doesn't match.`, 409)
     );
   });
 
@@ -83,7 +83,7 @@ describe("User Login", () => {
     const mockedJwtToken = "mocked-jwt-token";
 
     (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
-      userId: 1,
+      id: 1,
       email: req.body.email,
       password: req.body.password,
     });
@@ -99,14 +99,14 @@ describe("User Login", () => {
     });
     expect(comparePassword).toHaveBeenCalledWith(req.body.password, "password");
     expect(jwt.sign).toHaveBeenCalledWith(
-      { userId: req.body.id, email: req.body.email },
+      { userId: 1, email: req.body.email },
       process.env.JWT_SECRET || "",
       { expiresIn: "1h" }
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       user: {
-        userId: 1,
+        id: 1,
         email: req.body.email,
         password: req.body.password,
       },

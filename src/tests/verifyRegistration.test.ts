@@ -2,6 +2,11 @@ import { verifyRegistration } from "../controllers/authController";
 import { prismaMock } from "../prisma/singleton";
 import HttpError from "../custom-errors/httpError";
 import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+
+jest.mock("jsonwebtoken", () => ({
+  sign: jest.fn(),
+}));
 
 describe("verifyRegistration", () => {
   let req: Partial<Request>;
@@ -79,6 +84,7 @@ describe("verifyRegistration", () => {
       verified: false,
     });
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
+      type: "Register",
       code: "654321",
       used: false,
     });
@@ -99,6 +105,7 @@ describe("verifyRegistration", () => {
       verified: false,
     });
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
+      type: "Register",
       code: "123456",
       used: true,
     });
@@ -120,11 +127,13 @@ describe("verifyRegistration", () => {
     });
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
       id: 1,
+      type: "Register",
       code: "123456",
       used: false,
     });
     (prismaMock.verificationCode.update as jest.Mock).mockResolvedValue({
       id: 1,
+      type: "Register",
       code: "123456",
       used: true,
     });
@@ -143,24 +152,31 @@ describe("verifyRegistration", () => {
 
   test("should successfully update the user's verified status", async () => {
     req.body = { email: "test@example.com", code: "123456" };
+    const mockedJwtToken = "mocked-jwt-token";
+
     (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
+      id: 1,
       email: "test@example.com",
       verified: false,
     });
     (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
       id: 1,
+      type: "Register",
       code: "123456",
       used: false,
     });
     (prismaMock.verificationCode.update as jest.Mock).mockResolvedValue({
       id: 1,
+      type: "Register",
       code: "123456",
       used: true,
     });
     (prismaMock.user.update as jest.Mock).mockResolvedValue({
+      id: 1,
       email: "test@example.com",
       verified: true,
     });
+    (jwt.sign as jest.Mock).mockReturnValue(mockedJwtToken);
 
     await verifyRegistration(req as Request, res as Response, next);
 
@@ -169,10 +185,18 @@ describe("verifyRegistration", () => {
       data: { verified: true },
     });
 
+    expect(jwt.sign).toHaveBeenCalledWith(
+      { userId: 1, email: req.body.email },
+      process.env.JWT_SECRET || "",
+      { expiresIn: "1h" }
+    );
+
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
+      id: 1,
       email: "test@example.com",
       verified: true,
+      token: mockedJwtToken,
     });
   });
 });
