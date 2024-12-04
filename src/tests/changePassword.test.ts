@@ -67,18 +67,25 @@ describe("Change Password and Token Validation", () => {
   // Change Password Tests
   describe("changePassword Controller", () => {
     it("should throw an error if fields are missing", async () => {
-      req.body = { currentPassword: "", newPassword: "" };
+      req.body = { currentPassword: "", newPassword: "", confirmPassword: "" };
       (req as CustomRequest).user = { email: "user@example.com" };
 
       await changePassword(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
-        new HttpError("Field(s) currentPassword newPassword missing.", 404)
+        new HttpError(
+          "Field(s) currentPassword newPassword confirmPassword missing.",
+          404
+        )
       );
     });
 
     it("should throw an error if new password's length is less than 4", async () => {
-      req.body = { currentPassword: "Deneme123.", newPassword: "12." };
+      req.body = {
+        currentPassword: "testPw",
+        newPassword: "tst",
+        confirmPassword: "tst",
+      };
       (req as CustomRequest).user = { email: "user@example.com" };
 
       await changePassword(req as Request, res as Response, next);
@@ -89,7 +96,11 @@ describe("Change Password and Token Validation", () => {
     });
 
     it("should throw an error if both passwords are same", async () => {
-      req.body = { currentPassword: "Deneme123.", newPassword: "Deneme123." };
+      req.body = {
+        currentPassword: "newTestPw",
+        newPassword: "newTestPw",
+        confirmPassword: "newTestPw",
+      };
       (req as CustomRequest).user = { email: "user@example.com" };
 
       await changePassword(req as Request, res as Response, next);
@@ -99,8 +110,27 @@ describe("Change Password and Token Validation", () => {
       );
     });
 
+    it("should throw an error if new password and confirm password aren't matching", async () => {
+      req.body = {
+        currentPassword: "testPw",
+        newPassword: "newTestPw",
+        confirmPassword: "newTestPassword",
+      };
+      (req as CustomRequest).user = { email: "user@example.com" };
+
+      await changePassword(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(
+        new HttpError("New password isn't matching with the confirmation.", 400)
+      );
+    });
+
     it("should throw an error if user is not found", async () => {
-      req.body = { currentPassword: "current", newPassword: "Deneme123." };
+      req.body = {
+        currentPassword: "testPw",
+        newPassword: "newTestPw",
+        confirmPassword: "newTestPw",
+      };
       (req as CustomRequest).user = { email: "user@example.com" };
 
       (prismaMock.user.findFirst as jest.Mock).mockResolvedValue(null);
@@ -115,6 +145,7 @@ describe("Change Password and Token Validation", () => {
       req.body = {
         currentPassword: "wrongPassword",
         newPassword: "newPassword",
+        confirmPassword: "newPassword",
       };
       (req as CustomRequest).user = { email: "user@example.com" };
 
@@ -136,6 +167,7 @@ describe("Change Password and Token Validation", () => {
       req.body = {
         currentPassword: "currentPassword",
         newPassword: "newPassword",
+        confirmPassword: "newPassword",
       };
       (req as CustomRequest).user = { email: "user@example.com" };
 
@@ -144,6 +176,7 @@ describe("Change Password and Token Validation", () => {
 
       (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
         id: "1",
+        username: "testuser",
         email: "user@example.com",
         password: "hashedPassword",
       });
@@ -161,9 +194,26 @@ describe("Change Password and Token Validation", () => {
         used: false,
       });
 
-      (generateRandomSecret as jest.Mock).mockReturnValue("newCode");
       await changePassword(req as Request, res as Response, next);
 
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          email: "user@example.com",
+        },
+      });
+
+      expect(comparePassword).toHaveBeenCalledWith(
+        req.body.currentPassword,
+        "hashedPassword"
+      );
+      expect(prismaMock.verificationCode.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: "PasswordChange",
+          user: {
+            username: "testuser",
+          },
+        },
+      });
       expect(prismaMock.verificationCode.update).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -171,10 +221,77 @@ describe("Change Password and Token Validation", () => {
       );
     });
 
+    it("should create a new verification code if previous one is used", async () => {
+      req.body = {
+        currentPassword: "currentPassword",
+        newPassword: "newPassword",
+        confirmPassword: "newPassword",
+      };
+      (req as CustomRequest).user = { email: "user@example.com" };
+
+      const expirationTime = new Date();
+      expirationTime.setMinutes(expirationTime.getMinutes() + 1);
+
+      (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
+        id: "1",
+        username: "testuser",
+        email: "user@example.com",
+        password: "hashedPassword",
+      });
+      (comparePassword as jest.Mock).mockResolvedValue(true);
+
+      (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
+        id: "1",
+        code: "expiredCode",
+        expiration_time: expirationTime,
+        used: true,
+      });
+
+      (prismaMock.verificationCode.create as jest.Mock).mockResolvedValue({
+        user_id: "1",
+        code: "newCode",
+        type: "PasswordChange",
+        expiration_time: expirationTime,
+        used: false,
+      });
+
+      await changePassword(req as Request, res as Response, next);
+
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          email: "user@example.com",
+        },
+      });
+
+      expect(comparePassword).toHaveBeenCalledWith(
+        req.body.currentPassword,
+        "hashedPassword"
+      );
+
+      expect(prismaMock.verificationCode.findFirst).toHaveBeenCalledWith({
+        where: {
+          type: "PasswordChange",
+          user: {
+            username: "testuser",
+          },
+        },
+      });
+
+      expect(prismaMock.verificationCode.create).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "user@example.com",
+          code: "newCode",
+        })
+      );
+    });
+
     it("should create a new verification code if none exists", async () => {
       req.body = {
         currentPassword: "currentPassword",
         newPassword: "newPassword",
+        confirmPassword: "newPassword",
       };
       (req as CustomRequest).user = { email: "user@example.com" };
 

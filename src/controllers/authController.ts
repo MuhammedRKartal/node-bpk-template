@@ -370,14 +370,14 @@ export const changePassword = async (
   next: NextFunction
 ) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
     const userInfo = (req as CustomRequest).user as JwtPayload;
 
-    if (!currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       throw new HttpError(
         `Field(s) ${!currentPassword ? "currentPassword " : ""}${
           !newPassword ? "newPassword" : ""
-        } missing.`,
+        } ${!confirmPassword ? "confirmPassword" : ""} missing.`,
         404
       );
     }
@@ -394,6 +394,13 @@ export const changePassword = async (
 
     if (currentPassword === newPassword) {
       throw new HttpError(`Current and new password can't be same.`, 400);
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new HttpError(
+        `New password isn't matching with the confirmation.`,
+        400
+      );
     }
 
     const user = await prisma.user.findFirst({
@@ -424,10 +431,45 @@ export const changePassword = async (
 
     if (verificationCodeEntry) {
       if (verificationCodeEntry.used) {
-        throw new HttpError(
-          `The code: '${verificationCodeEntry.code}' for '${user.username}' is already used.`,
-          409
+        const verificationCode = generateRandomSecret();
+        const currentTime = new Date();
+
+        const expirationTime = new Date();
+        expirationTime.setMinutes(expirationTime.getMinutes() + 1);
+
+        const newVerificationCodeEntry = await prisma.verificationCode.create({
+          data: {
+            user_id: user.id,
+            code: verificationCode,
+            type: "PasswordChange",
+            expiration_time: expirationTime,
+            used: false,
+            created_at: currentTime,
+            updated_at: currentTime,
+          },
+        });
+
+        if (!newVerificationCodeEntry) {
+          throw new HttpError(
+            `Couldn't create verification code entry with type: 'PasswordChange' for '${user.email}'`,
+            400
+          );
+        }
+
+        logger.info(
+          `The code: '${verificationCodeEntry.code}' for '${user.username}' is already used.`
         );
+        logger.info(
+          `Successfully created a new verification code for '${user.username}' with type:'PasswordChange', code is: ${newVerificationCodeEntry.code}, timer for that is ${newVerificationCodeEntry.expiration_time}.`
+        );
+
+        res.status(201).json({
+          email: user.email,
+          type: "Register",
+          code: newVerificationCodeEntry.code,
+          expiration_time: newVerificationCodeEntry.expiration_time,
+        });
+        return;
       }
 
       const currentTime = new Date();
