@@ -420,52 +420,13 @@ export const changePassword = async (
       where: {
         type: "PasswordChange",
         user: { username: user.username },
+        used: false,
       },
     });
 
+    console.log(verificationCodeEntry);
+
     if (verificationCodeEntry) {
-      if (verificationCodeEntry.used) {
-        const verificationCode = generateRandomSecret();
-        const currentTime = new Date();
-
-        const expirationTime = new Date();
-        expirationTime.setMinutes(expirationTime.getMinutes() + 1);
-
-        const newVerificationCodeEntry = await prisma.verificationCode.create({
-          data: {
-            user_id: user.id,
-            code: verificationCode,
-            type: "PasswordChange",
-            expiration_time: expirationTime,
-            used: false,
-            created_at: currentTime,
-            updated_at: currentTime,
-          },
-        });
-
-        if (!newVerificationCodeEntry) {
-          throw new HttpError(
-            `Couldn't create verification code entry with type: 'PasswordChange' for '${user.email}'`,
-            400
-          );
-        }
-
-        logger.info(
-          `The code: '${verificationCodeEntry.code}' for '${user.username}' is already used.`
-        );
-        logger.info(
-          `Successfully created a new verification code for '${user.username}' with type:'PasswordChange', code is: ${newVerificationCodeEntry.code}, timer for that is ${newVerificationCodeEntry.expiration_time}.`
-        );
-
-        res.status(201).json({
-          email: user.email,
-          type: "Register",
-          code: newVerificationCodeEntry.code,
-          expiration_time: newVerificationCodeEntry.expiration_time,
-        });
-        return;
-      }
-
       const currentTime = new Date();
 
       if (verificationCodeEntry.expiration_time > currentTime) {

@@ -212,78 +212,13 @@ describe("Change Password and Token Validation", () => {
           user: {
             username: "testuser",
           },
+          used: false,
         },
       });
       expect(prismaMock.verificationCode.update).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ code: "newCode" })
-      );
-    });
-
-    it("should create a new verification code if previous one is used", async () => {
-      req.body = {
-        currentPassword: "currentPassword",
-        newPassword: "newPassword",
-        confirmPassword: "newPassword",
-      };
-      (req as CustomRequest).user = { email: "user@example.com" };
-
-      const expirationTime = new Date();
-      expirationTime.setMinutes(expirationTime.getMinutes() + 1);
-
-      (prismaMock.user.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
-        username: "testuser",
-        email: "user@example.com",
-        password: "hashedPassword",
-      });
-      (comparePassword as jest.Mock).mockResolvedValue(true);
-
-      (prismaMock.verificationCode.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
-        code: "expiredCode",
-        expiration_time: expirationTime,
-        used: true,
-      });
-
-      (prismaMock.verificationCode.create as jest.Mock).mockResolvedValue({
-        user_id: "1",
-        code: "newCode",
-        type: "PasswordChange",
-        expiration_time: expirationTime,
-        used: false,
-      });
-
-      await changePassword(req as Request, res as Response, next);
-
-      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
-        where: {
-          email: "user@example.com",
-        },
-      });
-
-      expect(comparePassword).toHaveBeenCalledWith(
-        req.body.currentPassword,
-        "hashedPassword"
-      );
-
-      expect(prismaMock.verificationCode.findFirst).toHaveBeenCalledWith({
-        where: {
-          type: "PasswordChange",
-          user: {
-            username: "testuser",
-          },
-        },
-      });
-
-      expect(prismaMock.verificationCode.create).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          email: "user@example.com",
-          code: "newCode",
-        })
       );
     });
 
