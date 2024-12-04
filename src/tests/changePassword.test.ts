@@ -74,7 +74,7 @@ describe("Change Password and Token Validation", () => {
 
       expect(next).toHaveBeenCalledWith(
         new HttpError(
-          "Field(s) currentPassword newPassword confirmPassword missing.",
+          "Missing field(s): currentPassword, newPassword, confirmPassword.",
           404
         )
       );
@@ -106,7 +106,7 @@ describe("Change Password and Token Validation", () => {
       await changePassword(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
-        new HttpError("Current and new password can't be same.", 400)
+        new HttpError("Current and new passwords cannot be the same.", 400)
       );
     });
 
@@ -121,7 +121,7 @@ describe("Change Password and Token Validation", () => {
       await changePassword(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
-        new HttpError("New password isn't matching with the confirmation.", 400)
+        new HttpError("New password and confirmation do not match.", 400)
       );
     });
 
@@ -137,7 +137,7 @@ describe("Change Password and Token Validation", () => {
       await changePassword(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
-        new HttpError("User with current access token doesn't exist.", 404)
+        new HttpError("User not found with the current access token.", 404)
       );
     });
 
@@ -159,7 +159,7 @@ describe("Change Password and Token Validation", () => {
       await changePassword(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
-        new HttpError("Current password isn't correct.", 400)
+        new HttpError("Current password is incorrect.", 400)
       );
     });
 

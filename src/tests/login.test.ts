@@ -29,7 +29,7 @@ describe("User Login", () => {
     await login(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(
-      new HttpError(`Field(s) email password missing.`, 404)
+      new HttpError(`Missing field(s): email, password.`, 404)
     );
   });
 
@@ -38,7 +38,7 @@ describe("User Login", () => {
     await login(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(
-      new HttpError(`Field(s) password missing.`, 404)
+      new HttpError(`Missing field(s): password.`, 404)
     );
   });
 

@@ -24,7 +24,7 @@ describe("User Registration", () => {
   it("should throw an error if 3 fields are missing", async () => {
     await register(req as Request, res as Response, next);
     expect(next).toHaveBeenCalledWith(
-      new HttpError("Field(s) username password email missing.", 404)
+      new HttpError("Missing field(s): username, password, email.", 404)
     );
   });
 
@@ -32,7 +32,7 @@ describe("User Registration", () => {
     req.body = { username: "test" };
     await register(req as Request, res as Response, next);
     expect(next).toHaveBeenCalledWith(
-      new HttpError("Field(s) password email missing.", 404)
+      new HttpError("Missing field(s): password, email.", 404)
     );
   });
 
@@ -40,7 +40,7 @@ describe("User Registration", () => {
     req.body = { username: "test", password: "test123" };
     await register(req as Request, res as Response, next);
     expect(next).toHaveBeenCalledWith(
-      new HttpError("Field(s) email missing.", 404)
+      new HttpError("Missing field(s): email.", 404)
     );
   });
 

@@ -20,12 +20,14 @@ export const register = async (
 
   try {
     if (!username || !password || !email) {
-      throw new HttpError(
-        `Field(s) ${!username ? "username " : ""}${
-          !password ? "password " : ""
-        }${!email ? "email" : ""} missing.`,
-        404
-      );
+      const missingFields = [
+        !username && "username",
+        !password && "password",
+        !email && "email",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      throw new HttpError(`Missing field(s): ${missingFields}.`, 404);
     }
 
     if (username.length < 4)
@@ -189,10 +191,10 @@ export const verifyRegistration = async (
 
   try {
     if (!email || !code) {
-      throw new HttpError(
-        `Field(s) ${!email ? "email " : ""}${!code ? "code" : ""} missing.`,
-        404
-      );
+      const missingFields = [!email && "email", !code && "code"]
+        .filter(Boolean)
+        .join(", ");
+      throw new HttpError(`Missing field(s): ${missingFields}.`, 404);
     }
 
     const user = await prisma.user.findFirst({
@@ -300,12 +302,10 @@ export const login = async (
 
   try {
     if (!email || !password) {
-      throw new HttpError(
-        `Field(s) ${!email ? "email " : ""}${
-          !password ? "password" : ""
-        } missing.`,
-        404
-      );
+      const missingFields = [!email && "email", !password && "password"]
+        .filter(Boolean)
+        .join(", ");
+      throw new HttpError(`Missing field(s): ${missingFields}.`, 404);
     }
 
     const user = await prisma.user.findFirst({
@@ -374,58 +374,52 @@ export const changePassword = async (
     const userInfo = (req as CustomRequest).user as JwtPayload;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      throw new HttpError(
-        `Field(s) ${!currentPassword ? "currentPassword " : ""}${
-          !newPassword ? "newPassword" : ""
-        } ${!confirmPassword ? "confirmPassword" : ""} missing.`,
-        404
-      );
+      const missingFields = [
+        !currentPassword && "currentPassword",
+        !newPassword && "newPassword",
+        !confirmPassword && "confirmPassword",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      throw new HttpError(`Missing field(s): ${missingFields}.`, 404);
     }
 
-    if (!userInfo || !userInfo.email) {
-      throw new HttpError(`Invalid token payload.`, 400);
+    if (!userInfo?.email) {
+      throw new HttpError("Invalid token payload.", 400);
     }
 
-    if (newPassword.length < 4)
+    if (newPassword.length < 4) {
       throw new HttpError(
         "New password must be at least 4 characters long.",
         400
       );
-
-    if (currentPassword === newPassword) {
-      throw new HttpError(`Current and new password can't be same.`, 400);
     }
-
+    if (currentPassword === newPassword) {
+      throw new HttpError("Current and new passwords cannot be the same.", 400);
+    }
     if (newPassword !== confirmPassword) {
-      throw new HttpError(
-        `New password isn't matching with the confirmation.`,
-        400
-      );
+      throw new HttpError("New password and confirmation do not match.", 400);
     }
 
     const user = await prisma.user.findFirst({
       where: { email: userInfo.email },
     });
-
     if (!user) {
-      throw new HttpError(`User with current access token doesn't exist.`, 404);
+      throw new HttpError("User not found with the current access token.", 404);
     }
 
     const passwordsMatching = await comparePassword(
       currentPassword,
       user.password
     );
-
     if (!passwordsMatching) {
-      throw new HttpError(`Current password isn't correct.`, 400);
+      throw new HttpError("Current password is incorrect.", 400);
     }
 
     const verificationCodeEntry = await prisma.verificationCode.findFirst({
       where: {
         type: "PasswordChange",
-        user: {
-          username: user.username,
-        },
+        user: { username: user.username },
       },
     });
 

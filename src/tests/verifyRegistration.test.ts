@@ -23,7 +23,7 @@ describe("verifyRegistration", () => {
     req.body = {};
     await verifyRegistration(req as Request, res as Response, next);
     expect(next).toHaveBeenCalledWith(
-      new HttpError("Field(s) email code missing.", 404)
+      new HttpError("Missing field(s): email, code.", 404)
     );
   });
 
@@ -31,7 +31,7 @@ describe("verifyRegistration", () => {
     req.body = { email: "test@example.com" };
     await verifyRegistration(req as Request, res as Response, next);
     expect(next).toHaveBeenCalledWith(
-      new HttpError("Field(s) code missing.", 404)
+      new HttpError("Missing field(s): code.", 404)
     );
   });
 
